@@ -1,43 +1,28 @@
 <?php
 /**
- * Plugin Name: Single Product Purchase Only
- * Plugin URI: https://jhorman-dev.netlify.app/
- * Description: Allows only one product in the cart at a time. Automatically removes any existing product when a new product is added.
- * Version: 1.0.0
+ * Plugin Name: Checkout Cart Warning
+ * Description: Al momento de salirse del checkout inmediatamente le quitará el producto del carrito.
+ * Version: 1.1
  * Author: Jhorman Nieto P
  * Author URI: https://jhorman-dev.netlify.app/
- * License: GPL-2.0+
- * License URI: https://www.gnu.org/licenses/gpl-2.0.html
+ * License: GPL2
  */
 
-// Prevent direct access to the file
-if (!defined('ABSPATH')) {
+// Evitar el acceso directo
+if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-// Ensure only one product is in the cart at a time
-add_action('woocommerce_before_calculate_totals', 'single_product_cart_enforce', 10, 1);
-function single_product_cart_enforce($cart) {
-    if (is_admin() || wp_doing_ajax()) {
-        return; // Avoid affecting admin or AJAX operations.
-    }
-
-    // If the cart contains more than one product, keep only the most recently added
-    if ($cart->get_cart_contents_count() > 1) {
-        $last_item = end($cart->get_cart());
-
-        // Clear the cart except the last item
+// Función para vaciar el carrito si el usuario sale del checkout o de la página `complete-payment`
+add_action('template_redirect', function() {
+    // Verifica si el usuario está en la página de checkout o en `complete-payment`
+    if (is_checkout() && !is_wc_endpoint_url('order-received') && !is_page('complete-payment')) {
+        // Usamos una cookie para marcar que el usuario estuvo en el checkout
+        setcookie('in_checkout', '1', time() + 3600, '/');
+    } elseif (isset($_COOKIE['in_checkout']) && !is_checkout() && !is_page('complete-payment')) {
+        // Si sale del checkout o la página `complete-payment`, vaciamos el carrito
         WC()->cart->empty_cart();
-        WC()->cart->add_to_cart($last_item['product_id'], $last_item['quantity'], $last_item['variation_id'], $last_item['variation']);
+        // Eliminamos la cookie
+        setcookie('in_checkout', '', time() - 3600, '/');
     }
-}
-
-// Validate cart when adding a product
-add_filter('woocommerce_add_to_cart_validation', 'single_product_cart_validate', 10, 3);
-function single_product_cart_validate($passed, $product_id, $quantity) {
-    // Clear the cart before adding a new product
-    if (WC()->cart->get_cart_contents_count() > 0) {
-        WC()->cart->empty_cart();
-    }
-    return $passed;
-}
+});
